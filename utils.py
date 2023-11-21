@@ -10,7 +10,7 @@ from torch import optim
 from torch.optim.lr_scheduler import MultiStepLR
 # import node2vec.src.main as nv
 from sklearn.decomposition import PCA
-import community
+import community.community_louvain as community
 import pickle
 import re
 
@@ -223,6 +223,57 @@ def draw_graph(G, prefix = 'test'):
 # G = nx.karate_club_graph()
 # draw_graph(G)
 
+def draw_graph_embed(G, fname= 'figures/test_embed'):
+    node_embed_output = list(G.nodes(data=True))
+    node_embed_output = np.array([item[1]['features'] for item in node_embed_output])
+    adj = np.asarray(nx.to_numpy_array(G))
+    
+    #Plot edges
+    x =[]
+    y =[]
+    for i in range(node_embed_output.shape[0]):
+        coord1 = node_embed_output[i]
+        neighbors = np.where(np.isclose(adj[i], 1))[0]
+        for node in neighbors:
+            coord2 = node_embed_output[node]
+            x.extend([coord1[0], coord2[0], None])
+            y.extend([coord1[1], coord2[1], None])
+            # plt.plot([coord1[0], coord2[0]], [coord1[1], coord2[1]], '-k')
+    
+    plt.scatter(x,y, s=3, color='r')
+    plt.plot(x,y, '-k')
+    plt.savefig(fname+'.png', dpi=600)
+    plt.close()
+
+def draw_graph_list_embed(G_list, row, col, fname= 'figures/embed_list'):
+
+    for i,G in enumerate(G_list):
+        plt.subplot(row,col,i+1)
+        plt.subplots_adjust(left=0, bottom=0, right=1, top=1,
+                        wspace=0, hspace=0)
+        
+        node_embed_output = list(G.nodes(data=True))
+        node_embed_output = np.array([item[1]['features'] for item in node_embed_output])
+        adj = np.asarray(nx.to_numpy_array(G))
+
+        #Plot edges
+        x =[]
+        y =[]
+        for i in range(node_embed_output.shape[0]):
+            coord1 = node_embed_output[i]
+            neighbors = np.where(np.isclose(adj[i], 1))[0]
+            for node in neighbors:
+                coord2 = node_embed_output[node]
+                x.extend([coord1[0], coord2[0], None])
+                y.extend([coord1[1], coord2[1], None])
+        plt.scatter(x,y, s=3, color='r')
+        plt.plot(x,y, '-k')
+    
+    plt.savefig(fname+'.png', dpi=600)
+    plt.close()
+
+
+
 
 # draw a list of graphs [G]
 def draw_graph_list(G_list, row, col, fname = 'figures/test', layout='spring', is_single=False,k=1,node_size=55,alpha=1,width=1.3):
@@ -274,7 +325,7 @@ def draw_graph_list(G_list, row, col, fname = 'figures/test', layout='spring', i
             nx.draw_networkx_nodes(G, pos, node_size=node_size, node_color='#336699', alpha=1, linewidths=0, font_size=0)
             nx.draw_networkx_edges(G, pos, alpha=alpha, width=width)
         else:
-            nx.draw_networkx_nodes(G, pos, node_size=1.5, node_color='#336699',alpha=1, linewidths=0.2, font_size = 1.5)
+            nx.draw_networkx_nodes(G, pos, node_size=1.5, node_color='#336699',alpha=1, linewidths=0.2) #, font_size = 1.5)
             nx.draw_networkx_edges(G, pos, alpha=0.3,width=0.2)
 
         # plt.axis('off')
@@ -399,7 +450,7 @@ def draw_graph_list(G_list, row, col, fname = 'figures/test', layout='spring', i
 # directly get graph statistics from adj, obsoleted
 def decode_graph(adj, prefix):
     adj = np.asmatrix(adj)
-    G = nx.from_numpy_matrix(adj)
+    G = nx.from_numpy_array(adj)
     # G.remove_nodes_from(nx.isolates(G))
     print('num of nodes: {}'.format(G.number_of_nodes()))
     print('num of edges: {}'.format(G.number_of_edges()))
@@ -430,7 +481,25 @@ def get_graph(adj):
     adj = adj[~np.all(adj == 0, axis=1)]
     adj = adj[:, ~np.all(adj == 0, axis=0)]
     adj = np.asmatrix(adj)
-    G = nx.from_numpy_matrix(adj)
+    G = nx.from_numpy_array(adj)
+    return G
+
+def get_graph_embed(adj, node_embed):
+    '''
+    get a graph from zero-padded adj
+    :param adj:
+    :return:
+    '''
+    # remove all zeros rows and columns
+    adj = adj[~np.all(adj == 0, axis=1)]
+    adj = adj[:, ~np.all(adj == 0, axis=0)]
+    adj = np.asmatrix(adj)
+    G = nx.from_numpy_array(adj)
+    feature_dict = {}
+    for node_id, feature_vector in enumerate(node_embed):
+        feature_dict[node_id] = {'features': feature_vector}
+    
+    nx.set_node_attributes(G, feature_dict)
     return G
 
 # save a list of graphs

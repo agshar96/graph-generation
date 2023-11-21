@@ -221,12 +221,12 @@ def train_mlp_epoch(epoch, args, rnn, output, data_loader,
 
         if epoch % args.epochs_log==0 and batch_idx==0: # only output first batch's statistics
             print('Epoch: {}/{}, train loss: {:.6f}, graph type: {}, num_layer: {}, hidden: {}'.format(
-                epoch, args.epochs,loss.data[0], args.graph_type, args.num_layers, args.hidden_size_rnn))
+                epoch, args.epochs, loss.item() , args.graph_type, args.num_layers, args.hidden_size_rnn))
 
         # logging
-        log_value('loss_'+args.fname, loss.data[0], epoch*args.batch_ratio+batch_idx)
+        log_value('loss_'+args.fname, loss.item(), epoch*args.batch_ratio+batch_idx)
 
-        loss_sum += loss.data[0]
+        loss_sum += loss.item()
     return loss_sum/(batch_idx+1)
 
 
@@ -510,12 +510,12 @@ def train_rnn_epoch(epoch, args, rnn, output, data_loader,
 
         if epoch % args.epochs_log==0 and batch_idx==0: # only output first batch's statistics
             print('Epoch: {}/{}, train loss: {:.6f}, graph type: {}, num_layer: {}, hidden: {}'.format(
-                epoch, args.epochs,loss.data[0], args.graph_type, args.num_layers, args.hidden_size_rnn))
+                epoch, args.epochs,loss.item(), args.graph_type, args.num_layers, args.hidden_size_rnn))
 
         # logging
-        log_value('loss_'+args.fname, loss.data[0], epoch*args.batch_ratio+batch_idx)
+        log_value('loss_'+args.fname, loss.item(), epoch*args.batch_ratio+batch_idx)
         feature_dim = y.size(1)*y.size(2)
-        loss_sum += loss.data[0]*feature_dim
+        loss_sum += loss.item() #*feature_dim
     return loss_sum/(batch_idx+1)
 
 
@@ -682,6 +682,7 @@ def train(args, dataset_train, rnn, output):
                             scheduler_rnn, scheduler_output)
         time_end = tm.time()
         time_all[epoch - 1] = time_end - time_start
+        print("EPOCH: ", epoch)
         # test
         if epoch % args.epochs_test == 0 and epoch>=args.epochs_test_start:
             for sample_time in range(1,4):
@@ -697,6 +698,7 @@ def train(args, dataset_train, rnn, output):
                 # save graphs
                 fname = args.graph_save_path + args.fname_pred + str(epoch) +'_'+str(sample_time) + '.dat'
                 save_graph_list(G_pred, fname)
+                draw_graph_list(G_pred[0:2], 1,2,  fname = 'figures_no_embed/test_out_'+str(epoch))
                 if 'GraphRNN_RNN' in args.note:
                     break
             print('test done, graphs saved')

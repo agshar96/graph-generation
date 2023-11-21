@@ -24,7 +24,7 @@ ed.set_seed(int(time()))
 
 def disjoint_cliques_test_graph(num_cliques, clique_size):
     G = nx.disjoint_union_all([nx.complete_graph(clique_size) for _ in range(num_cliques)])
-    return nx.to_numpy_matrix(G)
+    return nx.to_numpy_array(G)
 
 def mmsb(N, K, data):
     # sparsity
@@ -91,7 +91,7 @@ def graph_gen_from_blockmodel(B, Z):
     Z = np.array(Z)
     adj_prob = np.dot(Z, np.dot(B, np.transpose(Z)))
     adj = np.random.binomial(1, adj_prob * 0.3)
-    return nx.from_numpy_matrix(adj)
+    return nx.from_numpy_array(adj)
 
 if __name__ == '__main__':
     prog_args = arg_parse()
@@ -99,26 +99,26 @@ if __name__ == '__main__':
     print('CUDA', CUDA)
 
     X_dataset = []
-    #X_data = nx.to_numpy_matrix(nx.connected_caveman_graph(4, 7))
+    #X_data = nx.to_numpy_array(nx.connected_caveman_graph(4, 7))
     if prog_args.dataset == 'clique_test':
         X_data = disjoint_cliques_test_graph(4, 7)
         X_dataset.append(X_data)
     elif prog_args.dataset == 'citeseer':
         graphs = utils.citeseer_ego()
-        X_dataset = [nx.to_numpy_matrix(g) for g in graphs]
+        X_dataset = [nx.to_numpy_array(g) for g in graphs]
     elif prog_args.dataset == 'community':
         graphs = []
         for i in range(2, 3):
             for j in range(30, 81):
                 for k in range(10):
                     graphs.append(utils.caveman_special(i,j, p_edge=0.3))
-        X_dataset = [nx.to_numpy_matrix(g) for g in graphs]
+        X_dataset = [nx.to_numpy_array(g) for g in graphs]
     elif prog_args.dataset == 'grid':
         graphs = []
         for i in range(10,20):
             for j in range(10,20):
                 graphs.append(nx.grid_2d_graph(i,j))
-        X_dataset = [nx.to_numpy_matrix(g) for g in graphs]
+        X_dataset = [nx.to_numpy_array(g) for g in graphs]
     elif prog_args.dataset.startswith('community'):
         graphs = []
         num_communities = int(prog_args.dataset[-1])
@@ -126,7 +126,7 @@ if __name__ == '__main__':
         c_sizes = np.random.choice([12, 13, 14, 15, 16, 17], num_communities)
         for k in range(3000):
             graphs.append(utils.n_community(c_sizes, p_inter=0.01))
-        X_dataset = [nx.to_numpy_matrix(g) for g in graphs]
+        X_dataset = [nx.to_numpy_array(g) for g in graphs]
 
     print('Number of graphs: ', len(X_dataset))
     K = prog_args.K  # number of clusters

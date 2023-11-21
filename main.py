@@ -1,8 +1,18 @@
 from train import *
+from train_embed import *
+from argparse import ArgumentParser
 
 if __name__ == '__main__':
-    # All necessary arguments are defined in args.py
-    args = Args()
+    parser = ArgumentParser()
+    parser.add_argument('--config', help='argument file as json', type=str, default="configs/args_testrun.json")
+    opts = parser.parse_args()
+    # All necessary arguments are defined in args.py or in the json
+    json_file = opts.config
+    if json_file == None:
+        args = Args()
+    else:
+        print("Using the json file: ", json_file)
+        args = Args_from_json(json_file)
     os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda)
     print('CUDA', args.cuda)
     print('File name prefix',args.fname)
@@ -77,7 +87,9 @@ if __name__ == '__main__':
     save_graph_list(graphs, args.graph_save_path + args.fname_train + '0.dat')
     save_graph_list(graphs, args.graph_save_path + args.fname_test + '0.dat')
     print('train and test graphs saved at: ', args.graph_save_path + args.fname_test + '0.dat')
-
+    ## ARGOVERSE
+    if args.use_node_embedding:
+        draw_graph_list_embed(graphs_train[0:4], 2,2,  fname = args.figure_save_path + 'GT_subsample')
     ### comment when normal training, for graph completion only
     # p = 0.5
     # for graph in graphs_train:
@@ -96,10 +108,14 @@ if __name__ == '__main__':
         print('nobfs')
         dataset = Graph_sequence_sampler_pytorch_nobfs(graphs_train, max_num_node=args.max_num_node)
         args.max_prev_node = args.max_num_node-1
-    if 'barabasi_noise' in args.graph_type:
+    elif 'barabasi_noise' in args.graph_type:
         print('barabasi_noise')
         dataset = Graph_sequence_sampler_pytorch_canonical(graphs_train,max_prev_node=args.max_prev_node)
         args.max_prev_node = args.max_num_node - 1
+    ## ARGOVERSE
+    elif args.use_node_embedding:
+        dataset = Graph_sequence_sampler_pytorch_embed(graphs_train,node_embed_size= args.node_embedding_size, max_prev_node=args.max_prev_node,max_num_node=args.max_num_node,
+                                                       use_small_graph=args.use_small_graph, small_node_num=args.small_node_num, use_embed_offset=args.use_embed_offset)
     else:
         dataset = Graph_sequence_sampler_pytorch(graphs_train,max_prev_node=args.max_prev_node,max_num_node=args.max_num_node)
     sample_strategy = torch.utils.data.sampler.WeightedRandomSampler([1.0 / len(dataset) for i in range(len(dataset))],
@@ -111,27 +127,55 @@ if __name__ == '__main__':
     ## Graph RNN VAE model
     # lstm = LSTM_plain(input_size=args.max_prev_node, embedding_size=args.embedding_size_lstm,
     #                   hidden_size=args.hidden_size, num_layers=args.num_layers).cuda()
+    ## ARGOVERSE
+    if args.use_node_embedding:
+        if 'GraphRNN_MLP' in args.note:
+            rnn = GRU_plain_embed(input_size=args.max_prev_node, node_embed_size=args.node_embedding_size,
+                                embedding_size=args.embedding_size_rnn, hidden_size=args.hidden_size_rnn, 
+                                num_layers=args.num_layers, has_input=True,
+                                has_output=False).cuda()
+            # We use the pre-existing MLP_Plain to act as a separate module that outputs node_embeddings
+            output_embed =  MLP_plain(h_size=args.hidden_size_rnn, embedding_size=32, y_size=args.node_embedding_size).cuda()
+            output = MLP_plain(h_size=args.hidden_size_rnn, embedding_size=args.embedding_size_output, y_size=args.max_prev_node).cuda()
+        elif 'GraphRNN_RNN' in args.note:
+            rnn = GRU_plain_embed(input_size=args.max_prev_node, node_embed_size=args.node_embedding_size,
+                                embedding_size=args.embedding_size_rnn, hidden_size=args.hidden_size_rnn, 
+                                num_layers=args.num_layers, has_input=True,
+                                has_output=True, output_size=args.hidden_size_rnn_output).cuda()
+            # rnn = GRU_plain(input_size=args.max_prev_node, embedding_size=args.embedding_size_rnn,
+            #                 hidden_size=args.hidden_size_rnn, num_layers=args.num_layers, has_input=True,
+            #                 has_output=True, output_size=args.hidden_size_rnn_output).cuda()
+            output = GRU_plain(input_size=1, embedding_size=args.embedding_size_rnn_output,
+                            hidden_size=args.hidden_size_rnn_output, num_layers=args.num_layers, has_input=True,
+                            has_output=True, output_size=1).cuda()
+            #Complex decoder used
+            output_embed =  MLP_complex(h_size=args.hidden_size_rnn_output, embedding_size=32, y_size=args.node_embedding_size).cuda()
 
-    if 'GraphRNN_VAE_conditional' in args.note:
-        rnn = GRU_plain(input_size=args.max_prev_node, embedding_size=args.embedding_size_rnn,
-                        hidden_size=args.hidden_size_rnn, num_layers=args.num_layers, has_input=True,
-                        has_output=False).cuda()
-        output = MLP_VAE_conditional_plain(h_size=args.hidden_size_rnn, embedding_size=args.embedding_size_output, y_size=args.max_prev_node).cuda()
-    elif 'GraphRNN_MLP' in args.note:
-        rnn = GRU_plain(input_size=args.max_prev_node, embedding_size=args.embedding_size_rnn,
-                        hidden_size=args.hidden_size_rnn, num_layers=args.num_layers, has_input=True,
-                        has_output=False).cuda()
-        output = MLP_plain(h_size=args.hidden_size_rnn, embedding_size=args.embedding_size_output, y_size=args.max_prev_node).cuda()
-    elif 'GraphRNN_RNN' in args.note:
-        rnn = GRU_plain(input_size=args.max_prev_node, embedding_size=args.embedding_size_rnn,
-                        hidden_size=args.hidden_size_rnn, num_layers=args.num_layers, has_input=True,
-                        has_output=True, output_size=args.hidden_size_rnn_output).cuda()
-        output = GRU_plain(input_size=1, embedding_size=args.embedding_size_rnn_output,
-                           hidden_size=args.hidden_size_rnn_output, num_layers=args.num_layers, has_input=True,
-                           has_output=True, output_size=1).cuda()
+    else:
+        if 'GraphRNN_VAE_conditional' in args.note:
+            rnn = GRU_plain(input_size=args.max_prev_node, embedding_size=args.embedding_size_rnn,
+                            hidden_size=args.hidden_size_rnn, num_layers=args.num_layers, has_input=True,
+                            has_output=False).cuda()
+            output = MLP_VAE_conditional_plain(h_size=args.hidden_size_rnn, embedding_size=args.embedding_size_output, y_size=args.max_prev_node).cuda()
+        elif 'GraphRNN_MLP' in args.note:
+            rnn = GRU_plain(input_size=args.max_prev_node, embedding_size=args.embedding_size_rnn,
+                            hidden_size=args.hidden_size_rnn, num_layers=args.num_layers, has_input=True,
+                            has_output=False).cuda()
+            output = MLP_plain(h_size=args.hidden_size_rnn, embedding_size=args.embedding_size_output, y_size=args.max_prev_node).cuda()
+        elif 'GraphRNN_RNN' in args.note:
+            rnn = GRU_plain(input_size=args.max_prev_node, embedding_size=args.embedding_size_rnn,
+                            hidden_size=args.hidden_size_rnn, num_layers=args.num_layers, has_input=True,
+                            has_output=True, output_size=args.hidden_size_rnn_output).cuda()
+            output = GRU_plain(input_size=1, embedding_size=args.embedding_size_rnn_output,
+                            hidden_size=args.hidden_size_rnn_output, num_layers=args.num_layers, has_input=True,
+                            has_output=True, output_size=1).cuda()
 
     ### start training
-    train(args, dataset_loader, rnn, output)
+    ## ARGOVERSE
+    if args.use_node_embedding:
+        train_embed(args, dataset_loader, rnn, output, output_embed)
+    else:
+        train(args, dataset_loader, rnn, output)
 
     ### graph completion
     # train_graph_completion(args,dataset_loader,rnn,output)

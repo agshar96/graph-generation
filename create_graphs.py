@@ -149,7 +149,10 @@ def create(args):
         shuffle(graphs)
         graphs = graphs[0:200]
         args.max_prev_node = 15
-
+    elif args.graph_type == 'argoverse':
+        graphs, node_embed_range = Graph_load_from_torchfile(args.dataset_file_name)
+        args.max_prev_node = 45
+        args.node_embed_range = node_embed_range
     return graphs
 
 
